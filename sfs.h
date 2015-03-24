@@ -1,3 +1,11 @@
+/*creates fresh sfs*/
 void create_fresh_disk();
-void write_superblock(struct Superblocks* s);
-void bitmap_flip(int block);
+
+/*restores sfs using data on "disk"*/
+void boot_disk();
+
+/*builds file from inode*/
+void* read_dir(int inode);
+
+/*writes file using inode*/
+void write_dir(int inode);
