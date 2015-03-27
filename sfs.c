@@ -317,7 +317,7 @@ static void zeroblock (int block) {
 }
 
 /*find inode for for this name. returns -1 if can't be found*/
-int inodenum(char* name) {
+int inodeNum(char* name) {
 
 	int i;
 	for(i = 0; i < INODE_NUM; i++) {
@@ -326,4 +326,13 @@ int inodenum(char* name) {
 	}
 
 	return -1;
+}
+
+
+/*finds the inode block in which inode n is sitting*/
+static int getInodeBlock(int inode) {
+
+	int i = inode/INODE_PER_BLOCK;
+	return i + 1;
+
 }
