@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include "disk_emu.h"
 #define BLOCK_SIZE 512
 #define BLOCK_NUM 14000
@@ -215,8 +216,9 @@ static int create_inode(char* filename) {
 		firstfree = first_free_inode();
 
 		for(inc = 0; inc < INODE_NUM; inc++){
-			if (association[inc]. == NULL){
-				association[inc] == (Association){filename, firstfree};
+			if (association[inc].name == NULL){
+				strcpy(association[inc].name, filename);
+				association[inc].inode = firstfree;
 				break;
 			}
 		}
@@ -245,7 +247,7 @@ static void bitmap_flip(int block) {
 
 	bitmap[block/8] = bitholder;
 
-	write(BLOCK_NUM-1, 1, &bitmap)
+	write(BLOCK_NUM-1, 1, &bitmap);
 }
 
 /*finds first unused inode, must have inode free*/
@@ -274,14 +276,14 @@ static int first_free_dblock() {
 	assert (freedblocks > 0);
 
 	/*searching*/
-	int i, j, switch = 0;
+	int i, j, sw = 0;
 	for (i = 0; i < BLOCK_NUM / 8 + 1; i++) {
 		for (j = 0; j < 8; j++) {
 			if ((bitmap[i] >> j) %2 == 1) {
-				if (switch > INODE_NUM+1);
-					return switch;
+				if (sw > INODE_NUM+1);
+					return sw;
 			}
-			switch++;
+			sw++;
 		}
 	}
 
@@ -290,12 +292,12 @@ static int first_free_dblock() {
 /*builds file from inode*/
 void* get_file(int inode) {
 
-	Inode i = *read_inode(inode);
+	Inode i = *((Inode*)read_inode(inode));
 	void* data = malloc((i.size/BLOCK_SIZE + 1)*BLOCK_SIZE);
 	char* appender = data; 
 
 	if (i.size > 12*BLOCK_SIZE) {
-		memcpy()
+		printf("this is big file, i need to implement this");
 	}
 	else {
 		int inc;
@@ -325,7 +327,7 @@ int put_file(int inode, int size, char* buffer) {
 static void zero_block (int block) {
 
 	void* tempblock = malloc(BLOCK_SIZE);
-	void* blockinc = tempblock;
+	char* blockinc = tempblock;
 	int i;
 
 	for (i = 0; i < BLOCK_SIZE; i++) {
@@ -345,7 +347,7 @@ int inode_num(char* name) {
 	int i;
 	for(i = 0; i < INODE_NUM; i++) {
 		if (strcmp(name, association[i].name) == 0)
-			return associaton[i].inode;
+			return association[i].inode;
 	}
 
 	return -1;

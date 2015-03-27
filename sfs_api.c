@@ -4,7 +4,7 @@
 
 int mksfs(int fresh) {
 
-	assert(fresh == 0 | fresh == 1)
+	assert(fresh == 0 | fresh == 1);
 
 	/*make a new filesystem*/
 	if (fresh == 1) {
