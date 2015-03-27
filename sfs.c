@@ -1,3 +1,5 @@
+#include <stdlib.h>
+#include <string.h>
 #include "disk_emu.h"
 #define BLOCK_SIZE 512
 #define BLOCK_NUM 14000
@@ -22,17 +24,35 @@ typedef struct Inodes{
 	int ind_ptr;
 } Inode;
 
-typedef struct Directorytable{
+typedef struct Directory_Table_Association{
 	char name[16];
 	int inode;
-} Dir;
+} Association;
 
-typedef struct FileDescriptor{
+typedef struct File_Descriptors{
 	int inode_num;
 	void* read_ptr;
 	void* write_ptr;
 
-}
+} File_Descriptor;
+
+
+/*function prototypes*/
+void create_fresh_disk();
+void boot_disk();
+static void write_superblock(Superblock* s);
+static void* read_inode(int inode_num);
+static void write_inode(Inode i, int block);
+static int create_inode(char* filename);
+static void bitmap_flip(int block);
+static int first_free_inode();
+static int first_free_dblock();
+void* get_file(int inode);
+int put_file(int inode, int size, char* buffer);
+static void zero_block (int block);
+int inode_num(char* name);
+static int get_inode_block(int inode);
+
 
 /*
 
@@ -42,19 +62,17 @@ GLOBALS BABY
 
 
 /*for instantiating new inodes*/
-const Inode newnode{0, 0, 0, 0, 0, {NULL}, NULL};
+const Inode newnode = {0, 0, 0, 0, 0, {-1}, -1};
 
 /*global variables*/
 Superblock s;
-Superblock * super_ptr;
+Superblock *super_ptr;
 
 /*array that stores association between name and inode*/
-Dir association[INODE_NUM];
+Association association[INODE_NUM];
 
 /*bitmap that stores whether or not block is used*/
 unsigned char bitmap[(BLOCK_NUM/8) + 1];
-
-int fileDescriptorTable[]
 
 int current; /*for sfs_fetnextfilename*/
 int freeinodes = -1; 
@@ -65,6 +83,11 @@ Inode inode_cache[3];
 void* read_ptr;
 void* write_ptr;
 
+/*
+
+FUNCTIONS
+
+*/
 
 
 /*creates fresh sfs*/
@@ -76,7 +99,7 @@ void create_fresh_disk() {
 	init_fresh_disk("dat_virtual_filesystem_doe", BLOCK_SIZE, BLOCK_NUM);
 
 	/*creating superblock*/
-	s = {0, BLOCK_SIZE, BLOCK_NUM, INODE_NUM, 0};
+	s = (Superblock) {0, BLOCK_SIZE, BLOCK_NUM, INODE_NUM, 0};
 	super_ptr = &s;
 	write_superblock(super_ptr);
 
@@ -86,10 +109,10 @@ void create_fresh_disk() {
 	write_inode(i, 1);
 
 	/*creating bitmap*/
-	zeroblock(BLOCK_NUM - 1)
+	zero_block(BLOCK_NUM - 1);
 	bitmap_flip(0); /*superblock*/
 	bitmap_flip(1); /*inode 1 for root*/
-	bitmap_flip(INODE_NUM + 1) /*directory file*/
+	bitmap_flip(INODE_NUM + 1); /*directory file*/
 	bitmap_flip(BLOCK_NUM - 1);/*bitmap*/
 
 	freeinodes = INODE_NUM - 1;
@@ -102,7 +125,7 @@ void boot_disk() {
 
 	void* tempblock = malloc(BLOCK_SIZE);
 	read_blocks(0, 1, tempblock);
-	memcpy(s, tempblock, sizeof(s));
+	memcpy(&s, tempblock, sizeof(s));
 	read_blocks(1, 1, tempblock);
 	memcpy(association, tempblock, sizeof(association));
 	read_blocks(BLOCK_NUM-1, 1, tempblock);
@@ -111,16 +134,18 @@ void boot_disk() {
 	free(tempblock);
 	
 	/*calculating free blocks*/
-	int i, j, switch = 0;
+	int i, j, sw;
+	sw = 0;
+
 	for (i = 0; i < BLOCK_NUM / 8 + 1; i++) {
 		for (j = 0; j < 8; j++) {
 			if ((bitmap[i] >> j) %2 == 1) {
-				if (switch > 16)
+				if (sw > 16)
 					freeinodes++;
 				else
 					freedblocks++;
 			}
-			switch++;
+			sw++;
 		}
 	}
 
@@ -128,27 +153,24 @@ void boot_disk() {
 
 
 /*writes the information in s to the superblock*/
-static void write_superblock(Superblock * s){
+static void write_superblock(Superblock* s){
 
 	void* tempblock = malloc(BLOCK_SIZE);
-	void* blockinc = tempblock;
+	int* blockinc = tempblock;
 
-	zeroblock(0);
+	zero_block(0);
 
-	*blockinc = s.magic;
-	*blockinc +=4;
-	*blockinc = s.block_size;
-	*blockinc +=4;
-	*blockinc = s.file_system_size;
-	*blockinc +=4;
-	*blockinc = s.inode_table_length;
-	*blockinc +=4;
-	*blockinc = root_directory_inode;
-	*blockinc +=4;
-	*blockinc += EOF; 
+	*blockinc = s->magic;
+	blockinc++;
+	*blockinc = s->block_size;
+	blockinc++;
+	*blockinc = s->file_system_size;
+	blockinc++;
+	*blockinc = s->inode_table_length;
+	blockinc +=4;
+	*blockinc = s->root_directory_inode;
 
-
-	write_blocks(0, 1, tempblock)
+	write_blocks(0, 1, tempblock);
 
 	free(tempblock); 
 
@@ -178,7 +200,7 @@ static void* read_inode(int inode_num) {
 static void write_inode(Inode i, int block) {
 
 	void* tempblock = malloc(BLOCK_SIZE);
-	memcpy (tempblock, i, sizeof(i));
+	memcpy (tempblock, &i, sizeof(i));
 	write(block, 1, tempblock);
 	free(tempblock);
 	
@@ -193,8 +215,8 @@ static int create_inode(char* filename) {
 		firstfree = first_free_inode();
 
 		for(inc = 0; inc < INODE_NUM; inc++){
-			if (association[inc] == NULL){
-				association[inc] == (Dir){filename, firstfree};
+			if (association[inc]. == NULL){
+				association[inc] == (Association){filename, firstfree};
 				break;
 			}
 		}
@@ -232,14 +254,15 @@ static int first_free_inode() {
 	assert (freeinodes > 0);
 
 	/*searching*/
-	int i, j, switch = 0;
+	int i, j, sw;
+	sw = 0;
 	for (i = 0; i < BLOCK_NUM / 8 + 1; i++) {
 		for (j = 0; j < 8; j++) {
 			if ((bitmap[i] >> j) %2 == 1) {
-				if (switch > 0)
-					return switch;
+				if (sw > 0)
+					return sw;
 			}
-			switch++;
+			sw++;
 		}
 	}
 
@@ -293,13 +316,13 @@ int put_file(int inode, int size, char* buffer) {
 	if (size/BLOCK_SIZE + 1 > freedblocks)
 		return -1;
 
-	
+
 
 
 }
 
 /*formats block to 0s*/
-static void zeroblock (int block) {
+static void zero_block (int block) {
 
 	void* tempblock = malloc(BLOCK_SIZE);
 	void* blockinc = tempblock;
@@ -317,7 +340,7 @@ static void zeroblock (int block) {
 }
 
 /*find inode for for this name. returns -1 if can't be found*/
-int inodeNum(char* name) {
+int inode_num(char* name) {
 
 	int i;
 	for(i = 0; i < INODE_NUM; i++) {
@@ -330,7 +353,7 @@ int inodeNum(char* name) {
 
 
 /*finds the inode block in which inode n is sitting*/
-static int getInodeBlock(int inode) {
+static int get_inode_block(int inode) {
 
 	int i = inode/INODE_PER_BLOCK;
 	return i + 1;
