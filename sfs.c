@@ -293,7 +293,7 @@ int put_file(int inode, int size, char* buffer) {
 	if (size/BLOCK_SIZE + 1 > freedblocks)
 		return -1;
 
-
+	
 
 
 }
